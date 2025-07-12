@@ -1,0 +1,402 @@
+import { NewsService } from '../services/NewsService'
+import { News } from '../types/index'
+import router from '@ohos.router'
+import { StorageService } from '../services/StorageService'
+import promptAction from '@ohos.promptAction'
+
+@Component
+export struct NewsTabContent {
+  @State newsList: News[] = []
+  @State loading: boolean = false
+  @State refreshing: boolean = false
+  @State currentPage: number = 0
+  @State hasMore: boolean = true
+  @State searchKeyword: string = ''
+  @State isSearching: boolean = false
+  @State error: string = ''
+  @State isSuperAdmin: boolean = false
+  @State sortOrderInputs: Record<number, string> = {}
+  private newsService: NewsService = new NewsService()
+
+  aboutToAppear(): void {
+    StorageService.getInstance().getUserInfo().then(user => {
+      this.isSuperAdmin = user?.role === 'SUPER_ADMIN'
+      this.loadNews()
+    })
+  }
+
+  async loadNews(refresh: boolean = false): Promise<void> {
+    if (this.loading) return
+    this.loading = true
+    this.error = ''
+    if (refresh) {
+      this.currentPage = 0
+      this.hasMore = true
+    }
+    try {
+      const response = await this.newsService.getNewsList({
+        page: this.currentPage,
+        size: 10,
+        keyword: this.searchKeyword || undefined
+      })
+      console.info('接口返回数据:', JSON.stringify(response));
+      if (response.code === 200) {
+        if (refresh) {
+          this.newsList = response.data.content
+        } else {
+          this.newsList = this.newsList.concat(response.data.content)
+        }
+        console.info('newsList赋值后:', JSON.stringify(this.newsList));
+        // 输出所有图片URL
+        if (this.newsList && this.newsList.length > 0) {
+          this.newsList.forEach((news: News) => {
+            if (news.coverImage) {
+              console.info('图片URL:', news.coverImage);
+            }
+          });
+        }
+        this.hasMore = this.currentPage < response.data.totalPages - 1
+        this.currentPage++
+      }
+    } catch (error) {
+      this.error = '加载行业动态失败，请检查网络连接'
+    } finally {
+      this.loading = false
+      this.refreshing = false
+      // 渲染前日志
+      console.info('渲染前newsList:', JSON.stringify(this.newsList));
+    }
+  }
+
+  onSearch(): void {
+    this.isSearching = true
+    this.loadNews(true)
+  }
+
+  onRefresh(): void {
+    this.refreshing = true
+    this.loadNews(true)
+  }
+
+  onLoadMore(): void {
+    if (this.hasMore && !this.loading) {
+      this.loadNews()
+    }
+  }
+
+  onNewsClick(news: News): void {
+    router.pushUrl({
+      url: 'pages/NewsDetailPage',
+      params: { newsId: news.newsId }
+    })
+  }
+
+  async onAddNews() {
+    router.pushUrl({ url: 'pages/NewsEditPage', params: { mode: 'add' } }).then(() => {
+      this.loadNews(true)
+    })
+  }
+
+  async onEditNews(newsId: number) {
+    router.pushUrl({ url: 'pages/NewsEditPage', params: { mode: 'edit', newsId } }).then(() => {
+      this.loadNews(true)
+    })
+  }
+
+  async onDeleteNews(newsId: number) {
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      message: '确定要删除该动态吗？',
+      buttons: [ { text: '取消', color: '#666666' }, { text: '确定', color: '#FF4757' } ]
+    })
+    if (result.index === 1) {
+      const res = await this.newsService.deleteNews(newsId)
+      if (res.code === 200) {
+        promptAction.showToast({ message: '删除成功' })
+        this.loadNews(true)
+      } else {
+        promptAction.showToast({ message: res.message || '删除失败' })
+      }
+    }
+  }
+
+  async onToggleStatus(news: News) {
+    const newStatus = news.status === 1 ? 0 : 1
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      message: `确定要${newStatus === 1 ? '上架' : '下架'}该动态吗？`,
+      buttons: [ { text: '取消', color: '#666666' }, { text: '确定', color: '#FF4757' } ]
+    })
+    if (result.index === 1) {
+      const res = await this.newsService.updateNewsStatus(news.newsId, newStatus)
+      if (res.code === 200) {
+        promptAction.showToast({ message: `${newStatus === 1 ? '上架' : '下架'}成功` })
+        this.loadNews(true)
+      } else {
+        promptAction.showToast({ message: res.message || '操作失败' })
+      }
+    }
+  }
+
+  async onTopNews(news: News) {
+    const newTop = news.top ? 0 : 1
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      message: `确定要${newTop === 1 ? '置顶' : '取消置顶'}该动态吗？`,
+      buttons: [ { text: '取消', color: '#666666' }, { text: '确定', color: '#FF4757' } ]
+    })
+    if (result.index === 1) {
+      const res = await this.newsService.topNews(news.newsId, newTop)
+      if (res.code === 200) {
+        promptAction.showToast({ message: `${newTop === 1 ? '置顶' : '取消置顶'}成功` })
+        this.loadNews(true)
+      } else {
+        promptAction.showToast({ message: res.message || '操作失败' })
+      }
+    }
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '未知时间'
+    const date = new Date(dateString)
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+  }
+
+  formatTime(dateString: string): string {
+    if (!dateString) return '--:--'
+    const date = new Date(dateString)
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  }
+
+  @Builder
+  private NewsCard(news: News) {
+    Column() {
+      // 图片展示
+      if (news.coverImage && typeof news.coverImage === 'string' && news.coverImage.trim().length > 0) {
+        Image(news.coverImage.trim())
+          .width(80)
+          .height(80)
+          .objectFit(ImageFit.Cover)
+          .borderRadius(8)
+          .margin({ bottom: 8 })
+      }
+      Row() {
+        Column() {
+          Row() {
+            Text(news.title || '动态标题')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#333333')
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (news.top) {
+              Text('置顶').fontSize(12).fontColor('#FF4757').backgroundColor('#FFF0F0').borderRadius(8).padding({ left: 6, right: 6, top: 2, bottom: 2 }).margin({ left: 8 })
+            }
+          }
+          Text(news.summary || '动态摘要')
+            .fontSize(14)
+            .fontColor('#666666')
+            .maxLines(3)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 8 })
+          Row() {
+            Text(this.formatDate(news.publishTime))
+              .fontSize(12)
+              .fontColor('#999999')
+            Text(this.formatTime(news.publishTime))
+              .fontSize(12)
+              .fontColor('#999999')
+              .margin({ left: 12 })
+          }
+          .margin({ top: 8 })
+        }
+        .layoutWeight(1)
+        if (this.isSuperAdmin) {
+          Column() {
+            Row() {
+              Button('编辑').fontSize(13).width(60).height(28).margin({ bottom: 4 }).onClick(() => this.onEditNews(news.newsId))
+              Button('删除').fontSize(13).width(60).height(28).margin({ bottom: 4, left: 8 }).onClick(() => this.onDeleteNews(news.newsId))
+            }
+            Row() {
+              Button(news.status === 1 ? '下架' : '上架').fontSize(13).width(60).height(28).margin({ bottom: 4 }).onClick(() => this.onToggleStatus(news))
+              Button(news.top ? '取消置顶' : '置顶').fontSize(13).width(60).height(28).margin({ left: 8 }).onClick(() => this.onTopNews(news))
+            }
+            Row() {
+              TextInput({
+                placeholder: '权重',
+                text: String(
+                  this.sortOrderInputs[(typeof news.newsId === 'number' && !isNaN(news.newsId)) ? news.newsId : -1]
+                  ?? (typeof news.sortOrder === 'number' ? news.sortOrder : 0)
+                )
+              })
+                .width(60)
+                .height(28)
+                .fontSize(13)
+                .backgroundColor('#F5F5F5')
+                .borderRadius(8)
+                .onChange((v: string) => {
+                  const id = (typeof news.newsId === 'number' && !isNaN(news.newsId)) ? news.newsId : -1
+                  this.sortOrderInputs[id] = v
+                })
+              Button('保存权重').fontSize(13).width(70).height(28).margin({ left: 8 }).onClick(async () => {
+                const id = (typeof news.newsId === 'number' && !isNaN(news.newsId)) ? news.newsId : -1
+                if (id === -1) {
+                  promptAction.showToast({ message: '新闻ID无效，无法保存权重' })
+                  return
+                }
+                const val = parseInt(this.sortOrderInputs[id] ?? (typeof news.sortOrder === 'number' ? String(news.sortOrder) : '0'))
+                if (!isNaN(val)) {
+                  const res = await this.newsService.updateSortOrder(id, val)
+                  if (res.code === 200) {
+                    promptAction.showToast({ message: '权重已更新' })
+                    this.loadNews(true)
+                  } else {
+                    promptAction.showToast({ message: res.message || '权重更新失败' })
+                  }
+                } else {
+                  promptAction.showToast({ message: '请输入有效数字' })
+                }
+              })
+            }.margin({ top: 8 })
+          }
+        }
+      }
+      Divider()
+        .margin({ top: 12 })
+        .color('#E0E0E0')
+    }
+    .padding(16)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(8)
+    .margin({ left: 16, right: 16, top: 8, bottom: 24 })
+    .shadow({ radius: 4, color: '#00000010', offsetX: 0, offsetY: 2 })
+    .onClick(() => this.onNewsClick(news))
+  }
+
+  @Builder
+  private NewsList() {
+    Column() {
+      if (this.isSuperAdmin) {
+        Row() {
+          Button('新增动态')
+            .fontSize(15)
+            .fontColor('#fff')
+            .backgroundColor('#FF4757')
+            .borderRadius(20)
+            .width(120)
+            .height(40)
+            .margin({ left: 16, top: 12, bottom: 4 })
+            .onClick(() => this.onAddNews())
+        }
+      }
+      Row() {
+        TextInput({ placeholder: '搜索行业动态...', text: this.searchKeyword })
+          .width('60%')
+          .height(40)
+          .backgroundColor('#F5F5F5')
+          .borderRadius(20)
+          .padding({ left: 16, right: 16 })
+          .onChange((value: string) => {
+            this.searchKeyword = value
+          })
+          .onSubmit(() => this.onSearch())
+        Button('搜索')
+          .fontSize(14)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#007DFF')
+          .borderRadius(20)
+          .width(60)
+          .height(40)
+          .margin({ left: 8 })
+          .onClick(() => this.onSearch())
+        Button('测试图片')
+          .fontSize(14)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#FF6B35')
+          .borderRadius(20)
+          .width(80)
+          .height(40)
+          .margin({ left: 8 })
+          .onClick(() => router.pushUrl({ url: 'pages/WebViewTestPage' }))
+      }
+      .padding(16)
+      .backgroundColor('#FFFFFF')
+      Refresh({ refreshing: $$this.refreshing, offset: 120, friction: 100 }) {
+        List() {
+          if (this.error) {
+            ListItem() {
+              Column() {
+                Text('⚠️')
+                  .fontSize(48)
+                  .fontColor('#FFA500')
+                Text(this.error)
+                  .fontSize(14)
+                  .fontColor('#666666')
+                  .margin({ top: 8 })
+                Button('重试')
+                  .fontSize(14)
+                  .fontColor('#FFFFFF')
+                  .backgroundColor('#007DFF')
+                  .borderRadius(20)
+                  .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+                  .margin({ top: 16 })
+                  .onClick(() => this.loadNews(true))
+              }
+              .width('100%')
+              .height(200)
+              .justifyContent(FlexAlign.Center)
+            }
+          } else if (this.newsList.length === 0 && !this.loading) {
+            ListItem() {
+              Column() {
+                Text('📰')
+                  .fontSize(48)
+                  .fontColor('#CCCCCC')
+                Text('暂无行业动态')
+                  .fontSize(14)
+                  .fontColor('#999999')
+                  .margin({ top: 8 })
+              }
+              .width('100%')
+              .height(200)
+              .justifyContent(FlexAlign.Center)
+            }
+          } else {
+            ForEach(this.newsList, (news: News) => {
+              ListItem() {
+                this.NewsCard(news)
+              }
+            })
+          }
+          if (this.loading) {
+            ListItem() {
+              Row() {
+                LoadingProgress()
+                  .width(24)
+                  .height(24)
+                Text('加载中...')
+                  .fontSize(14)
+                  .fontColor('#666666')
+                  .margin({ left: 8 })
+              }
+              .width('100%')
+              .height(60)
+              .justifyContent(FlexAlign.Center)
+            }
+          }
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#F5F5F5')
+        .onReachEnd(() => this.onLoadMore())
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  build() {
+    Column() {
+      this.NewsList()
+    }
+    .width('100%')
+    .height('100%')
+  }
+} 

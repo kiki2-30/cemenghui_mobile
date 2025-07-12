@@ -1,0 +1,22 @@
+{
+  "pages": [
+    { "name": "pages/Index", "src": "pages/Index.ets" },
+    { "name": "pages/LoginPage", "src": "pages/LoginPage.ets" },
+    { "name": "pages/ProfilePage", "src": "pages/ProfilePage.ets" },
+    { "name": "pages/ConferencePage", "src": "pages/ConferencePage.ets" },
+    { "name": "pages/ConferenceDetailPage", "src": "pages/ConferenceDetailPage.ets" },
+    { "name": "pages/ConferenceEditPage", "src": "pages/ConferenceEditPage.ets" },
+    { "name": "pages/NewsPage", "src": "pages/NewsPage.ets" },
+    { "name": "pages/NewsDetailPage", "src": "pages/NewsDetailPage.ets" },
+    { "name": "pages/RegisterPage", "src": "pages/RegisterPage.ets" },
+    { "name": "pages/SuperAdminPage", "src": "pages/SuperAdminPage.ets" },
+    { "name": "pages/UserDetailPage", "src": "pages/UserDetailPage.ets" },
+    { "name": "pages/UserEditPage", "src": "pages/UserEditPage.ets" },
+    { "name": "pages/NewsEditPage", "src": "pages/NewsEditPage.ets" },
+    { "name": "pages/TestPage", "src": "pages/TestPage.ets" },
+    { "name": "pages/StandardDetailEditPage", "src": "pages/StandardDetailEditPage.ets" },
+    { "name": "pages/TrainingDetailEditPage", "src": "pages/TrainingDetailEditPage.ets" },
+    { "name": "pages/ToolDetailEditPage", "src": "pages/ToolDetailEditPage.ets" },
+    { "name": "pages/WebViewTestPage", "src": "pages/WebViewTestPage.ets" }
+  ]
+} 

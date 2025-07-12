@@ -1,0 +1,22 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/LoginPage",
+    "pages/ProfilePage",
+    "pages/ConferencePage",
+    "pages/ConferenceDetailPage",
+    "pages/ConferenceEditPage",
+    "pages/NewsPage",
+    "pages/NewsDetailPage",
+    "pages/RegisterPage",
+    "pages/SuperAdminPage",
+    "pages/UserDetailPage",
+    "pages/UserEditPage",
+    "pages/NewsEditPage",
+    "pages/TestPage",
+    "pages/WebViewTestPage",
+    "pages/StandardDetailEditPage",
+    "pages/TrainingDetailEditPage",
+    "pages/ToolDetailEditPage"
+  ]
+} 
